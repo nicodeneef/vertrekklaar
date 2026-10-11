@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VertrekKlaar</title><style>
+*{box-sizing:border-box}body{margin:0;background:#eff5ff;color:#182942;font:18px system-ui,-apple-system,Arial,sans-serif}
+main{max-width:470px;margin:auto;padding:18px 16px 35px;min-height:100dvh;display:flex;flex-direction:column;gap:13px}
+h1{text-align:center;font-size:27px;margin:3px 0 8px}.label{text-align:center;color:#506078;font-size:17px}
+.big{text-align:center;font-size:clamp(35px,10vw,49px);font-weight:850;font-variant-numeric:tabular-nums}
+.count{text-align:center;font-size:clamp(28px,8vw,39px);font-weight:850;color:#1555a1}
+.panel{background:#fff;border-radius:22px;padding:20px 15px;box-shadow:0 4px 18px #122f5410}
+.task{text-align:center;font-size:32px;font-weight:800}.emoji{text-align:center;font-size:65px}
+button{width:100%;border:0;border-radius:16px;padding:16px;font:inherit;font-weight:750;cursor:pointer;min-height:57px}
+.primary{background:#166c47;color:white;font-size:24px}.secondary{background:#dceaff;color:#143d7d}
+.small{font-size:16px;padding:11px;min-height:44px}.muted{text-align:center;color:#596b80;font-size:14px}
+details{background:#fff;border-radius:15px;padding:13px}summary{cursor:pointer;font-weight:750}
+.setting{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid #e5ebf4}
+.setting label{font-size:16px;flex:1}input[type=time]{width:125px;max-width:45%;font-size:17px;padding:9px 5px;border:1px solid #9cacc0;border-radius:9px}
+select{width:100%;padding:12px;border:1px solid #9cacc0;border-radius:10px;font:inherit;background:white}
+[hidden]{display:none!important}button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid orange;outline-offset:2px}
+#status{font-size:15px;text-align:center;color:#52637b}#notice{font-size:15px;color:#9a3a21;text-align:center;font-weight:700}
+</style></head><body><main>
+<h1>🌞 VertrekKlaar</h1>
+<div class="label">Het is nu</div><div id="now" class="big">--:--</div>
+<div class="label">Je moet weg om</div><div id="departureDisplay" class="big">08:00</div>
+<div class="label">Je vertrekt over</div><div id="remaining" class="count">--</div>
+<section id="routine" class="panel" hidden><div id="taskTime" class="label"></div><div id="emoji" class="emoji"></div><div id="task" class="task"></div><div id="status"></div><div id="notice"></div></section>
+<button id="speak" class="secondary">🔊 Lees voor</button>
+<button id="done" class="primary" hidden>✓ KLAAR!</button>
+<details id="settings"><summary>⚙️ Tijden instellen</summary>
+<p class="muted">Kies wanneer elke ochtendtaak begint.</p><div id="fields"></div>
+<div class="setting"><label for="departure">🚶 Vertrekken</label><input id="departure" type="time"></div>
+<p id="validation" class="muted" role="status"></p>
+<button id="save" class="primary small">Tijden opslaan</button></details>
+<details><summary>🧪 Testmodus voor docenten</summary>
+<p class="muted">Bekijk alle schermen, ongeacht het tijdstip.</p>
+<select id="preview" aria-label="Kies testscherm"><option value="auto">Normaal (echte tijd)</option><option value="evening">Avondscherm</option><option value="morning">Ochtendroutine</option></select>
+<button id="restart" class="secondary small" style="margin-top:10px">↺ Begin ochtend opnieuw</button>
+<p class="muted">In de testmodus kun je met KLAAR! door alle zes stappen gaan.</p></details>
+<div class="muted">Laat de app open voor een actuele afteller. Voorlezen werkt als je browser spraak ondersteunt.</div>
+</main><script>
+(()=>{
+'use strict';
+const defaults=[['🛏️','Sta op','06:45'],['👕','Kleed je aan','07:00'],['🥣','Ontbijt','07:15'],['🪥','Poets je tanden','07:35'],['🎒','Pak je tas','07:45'],['👟','Doe je schoenen aan','07:55']];
+const $=id=>document.getElementById(id);
+const valid=t=>/^([01]\d|2[0-3]):[0-5]\d$/.test(t);
+const minutes=t=>Number(t.slice(0,2))*60+Number(t.slice(3,5));
+const key='vertrekklaar-custom-v2';
+let times=defaults.map(x=>x[2]),departure='08:00',mode='auto',index=0,completed=0,day='';
+try{const data=JSON.parse(localStorage.getItem(key));if(data&&Array.isArray(data.times)&&data.times.length===6&&data.times.every(valid)&&valid(data.departure)){times=data.times;departure=data.departure}}catch(e){}
+function ordered(t,d){return t.every((v,i)=>i===0||minutes(v)>minutes(t[i-1]))&&minutes(t[5])<minutes(d)}
+function dateKey(now){return [now.getFullYear(),now.getMonth()+1,now.getDate()].join('-')}
+function fill(){ $('fields').innerHTML='';defaults.forEach((x,i)=>{const row=document.createElement('div');row.className='setting';const label=document.createElement('label');label.htmlFor='time'+i;label.textContent=x[0]+' '+x[1];const input=document.createElement('input');input.type='time';input.id='time'+i;input.value=times[i];row.append(label,input);$('fields').append(row)});$('departure').value=departure}
+function render(){
+const now=new Date(),date=dateKey(now),current=now.getHours()*60+now.getMinutes();
+$('now').textContent=now.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'});
+$('departureDisplay').textContent=departure;
+let target=new Date(now);target.setHours(Number(departure.slice(0,2)),Number(departure.slice(3)),0,0);
+if(target<=now)target.setDate(target.getDate()+1);
+const sec=Math.ceil((target-now)/1000),hours=Math.floor(sec/3600),mins=Math.floor(sec%3600/60);
+$('remaining').textContent=hours?hours+' uur en '+mins+' minuten':mins?mins+' minuten':sec+' seconden';
+if(day!==date){day=date;completed=0;index=0}
+const morning=mode==='morning'||(mode==='auto'&&current>=minutes(times[0])&&current<minutes(departure));
+const show=morning&&mode!=='evening';
+$('routine').hidden=!show;$('done').hidden=!show;
+if(show){
+ let idx;
+ if(mode==='morning')idx=index;
+ else{
+ const scheduled=times.reduce((last,t,i)=>current>=minutes(t)?i:last,0);
+ idx=Math.max(scheduled,completed);
+ }
+ idx=Math.min(idx,6);
+ if(idx===6){$('emoji').textContent='🎉';$('task').textContent='Je bent klaar!';$('taskTime').textContent='';$('status').textContent='Goed gedaan!';$('notice').textContent='';$('done').hidden=true}
+ else{$('emoji').textContent=defaults[idx][0];$('task').textContent=defaults[idx][1];$('taskTime').textContent='Vanaf '+times[idx];$('status').textContent='Stap '+(idx+1)+' van 6';$('notice').textContent=mode==='auto'&&current>minutes(times[idx])?'Je mag nu met deze stap beginnen.':''}
+ $('done').dataset.index=String(idx);
+}
+}
+$('save').onclick=()=>{const t=defaults.map((_,i)=>$('time'+i).value),d=$('departure').value;if(!t.every(valid)||!valid(d)||!ordered(t,d)){$('validation').textContent='Zet de tijden in oplopende volgorde. Elke taak moet vóór vertrek beginnen.';return}times=t;departure=d;completed=0;index=0;day='';try{localStorage.setItem(key,JSON.stringify({times,departure}))}catch(e){}$('validation').textContent='✓ Opgeslagen';$('settings').open=false;render()};
+$('preview').onchange=()=>{mode=$('preview').value;index=0;render()};
+$('restart').onclick=()=>{index=0;completed=0;render()};
+$('done').onclick=()=>{const idx=Number($('done').dataset.index);if(mode==='morning')index=Math.min(6,idx+1);else completed=Math.min(6,idx+1);render()};
+$('speak').onclick=()=>{if(!('speechSynthesis' in window)){alert('Voorlezen wordt niet ondersteund door deze browser.');return}let words='Het is nu '+$('now').textContent.replace(':',' uur ')+'. Je moet weg om '+departure.replace(':',' uur ')+'. Je vertrekt over '+$('remaining').textContent+'.';if(!$('routine').hidden)words+=' '+$('task').textContent+'.';speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(words);u.lang='nl-NL';u.rate=.85;speechSynthesis.speak(u)};
+fill();render();setInterval(render,1000);
+})();
+</script></body></html>
